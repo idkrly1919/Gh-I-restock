@@ -1,4 +1,4 @@
-import { Component, computed, signal, effect, OnDestroy, OnInit } from '@angular/core';
+import { Component, computed, signal, effect, OnDestroy, OnInit, viewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IconComponent } from './components/icons';
 import { ActionSheetComponent } from './components/action-sheet.component';
@@ -20,6 +20,8 @@ type AnimationState = 'idle' | 'slide-out-left' | 'slide-out-right' | 'slide-in-
   templateUrl: './app.component.html'
 })
 export class AppComponent implements OnInit, OnDestroy {
+  private readonly storageKey = 'angular-ios-timer-app';
+
   // State
   timers = signal<Timer[]>([]);
   currentIndex = signal(0);
@@ -34,9 +36,13 @@ export class AppComponent implements OnInit, OnDestroy {
   showDeleteModal = signal(false);
   showEditModal = signal(false);
   showSettingsModal = signal(false);
+  editingTimerId = signal<string | null>(null);
   
   // Animation State
   animationState = signal<AnimationState>('idle');
+
+  // View Children
+  titleInput = viewChild<ElementRef<HTMLInputElement>>('titleInput');
 
   // Computed
   currentTimer = computed(() => {
@@ -48,8 +54,34 @@ export class AppComponent implements OnInit, OnDestroy {
     return list[index];
   });
 
+  digitStyles = computed(() => {
+    const hoursLength = this.timeLeft().hours.length;
+    if (hoursLength > 4) { // 5+ digits
+        return {
+            digit: 'text-[38px] sm:text-[44px]',
+            colon: 'text-[34px] sm:text-[40px]'
+        };
+    }
+    if (hoursLength > 3) { // 4 digits
+        return {
+            digit: 'text-[48px] sm:text-[54px]',
+            colon: 'text-[44px] sm:text-[50px]'
+        };
+    }
+    if (hoursLength > 2) { // 3 digits
+        return {
+            digit: 'text-[60px] sm:text-[68px]',
+            colon: 'text-[55px] sm:text-[61px]'
+        };
+    }
+    return { // 1-2 digits
+        digit: 'text-[76px] sm:text-[85px]',
+        colon: 'text-[70px] sm:text-[76px]'
+    };
+  });
+
   // Timer Interval
-  timeLeft = signal({ hours: '00', minutes: '00', seconds: '00' });
+  timeLeft = signal({ hours: '0', minutes: '00', seconds: '00' });
   private intervalId: any;
   private wakeLock: any = null;
 
@@ -58,7 +90,30 @@ export class AppComponent implements OnInit, OnDestroy {
   private touchEndX = 0;
 
   constructor() {
-    this.addTimer();
+    this.loadTimers();
+    if (this.timers().length === 0) {
+      this.addTimer();
+    }
+
+    effect(() => {
+      const timers = this.timers();
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(this.storageKey, JSON.stringify(timers));
+      }
+    });
+
+    effect(() => {
+      if (this.editingTimerId() !== null) {
+          // Use a timeout to ensure the element is in the DOM and ready.
+          setTimeout(() => {
+              const inputEl = this.titleInput()?.nativeElement;
+              // The `autofocus` attribute handles focus. This effect now only handles text selection.
+              if (inputEl && this.currentTimer().title !== 'New Timer') {
+                 inputEl.select();
+              }
+          }, 0);
+      }
+    });
   }
 
   ngOnInit() {
@@ -68,7 +123,6 @@ export class AppComponent implements OnInit, OnDestroy {
     this.updateTimeLeft();
     this.requestWakeLock();
     
-    // Re-acquire wake lock if visibility changes (browser drops it on hide)
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', async () => {
         if (this.wakeLock !== null && document.visibilityState === 'visible') {
@@ -83,7 +137,6 @@ export class AppComponent implements OnInit, OnDestroy {
       try {
         this.wakeLock = await (navigator as any).wakeLock.request('screen');
       } catch (err) {
-        // Wake lock denied or not supported
         console.log('Wake Lock skipped', err);
       }
     }
@@ -94,6 +147,27 @@ export class AppComponent implements OnInit, OnDestroy {
     if (this.wakeLock) this.wakeLock.release();
   }
 
+  private loadTimers() {
+    if (typeof localStorage !== 'undefined') {
+      const savedTimersJson = localStorage.getItem(this.storageKey);
+      if (savedTimersJson) {
+        try {
+          const parsedTimers: any[] = JSON.parse(savedTimersJson);
+          if (Array.isArray(parsedTimers)) {
+            const timers = parsedTimers.map(timer => ({
+              ...timer,
+              targetDate: new Date(timer.targetDate)
+            }));
+            this.timers.set(timers);
+          }
+        } catch (e) {
+          console.error("Error parsing timers from localStorage", e);
+          localStorage.removeItem(this.storageKey);
+        }
+      }
+    }
+  }
+
   updateTimeLeft() {
     if (this.timers().length === 0) return;
 
@@ -102,7 +176,7 @@ export class AppComponent implements OnInit, OnDestroy {
     const diff = target - now;
 
     if (diff <= 0) {
-      this.timeLeft.set({ hours: '00', minutes: '00', seconds: '00' });
+      this.timeLeft.set({ hours: '0', minutes: '00', seconds: '00' });
       return;
     }
 
@@ -111,7 +185,7 @@ export class AppComponent implements OnInit, OnDestroy {
     const seconds = Math.floor((diff % (1000 * 60)) / 1000);
 
     this.timeLeft.set({
-      hours: hours.toString().padStart(2, '0'),
+      hours: hours.toString(),
       minutes: minutes.toString().padStart(2, '0'),
       seconds: seconds.toString().padStart(2, '0')
     });
@@ -128,7 +202,6 @@ export class AppComponent implements OnInit, OnDestroy {
     return true;
   }
 
-  // Animation CSS class helper
   isAnimating() {
     return this.animationState() !== 'idle';
   }
@@ -138,8 +211,8 @@ export class AppComponent implements OnInit, OnDestroy {
     switch (state) {
       case 'slide-out-left': return 'opacity-0 -translate-x-[50%] scale-90';
       case 'slide-out-right': return 'opacity-0 translate-x-[50%] scale-90';
-      case 'slide-in-right': return 'opacity-0 translate-x-[50%] scale-90 duration-0'; // Instant reset
-      case 'slide-in-left': return 'opacity-0 -translate-x-[50%] scale-90 duration-0'; // Instant reset
+      case 'slide-in-right': return 'opacity-0 translate-x-[50%] scale-90 duration-0';
+      case 'slide-in-left': return 'opacity-0 -translate-x-[50%] scale-90 duration-0';
       case 'idle': return 'opacity-100 translate-x-0 scale-100';
       default: return '';
     }
@@ -150,17 +223,38 @@ export class AppComponent implements OnInit, OnDestroy {
     const newTimer: Timer = {
       id: crypto.randomUUID(),
       title: 'New Timer',
-      targetDate: new Date() // Default to 00:00:00 remaining
+      targetDate: new Date()
     };
     this.timers.update(list => [...list, newTimer]);
     
-    // Jump to the new timer
     if (this.timers().length > 1) {
        this.nextTimer();
     } else {
         this.currentIndex.set(0);
         this.updateTimeLeft();
     }
+  }
+
+  startEditing(timerId: string) {
+    if (this.editingTimerId() === null) {
+        this.editingTimerId.set(timerId);
+    }
+  }
+
+  stopEditing(event: Event) {
+    const inputElement = event.target as HTMLInputElement;
+    const newTitle = inputElement.value.trim();
+    
+    this.timers.update(list => {
+        const newList = [...list];
+        const timerToUpdate = newList.find(t => t.id === this.editingTimerId());
+        if (timerToUpdate) {
+            timerToUpdate.title = newTitle || 'Timer';
+        }
+        return newList;
+    });
+
+    this.editingTimerId.set(null);
   }
 
   deleteCurrentTimer() {
@@ -195,12 +289,10 @@ export class AppComponent implements OnInit, OnDestroy {
     this.closeSettingsModal();
   }
 
-  // Sharing
   shareTimer() {
     if (this.timers().length === 0) return;
     const t = this.currentTimer();
     
-    // Fallback if window.location is blocked or non-standard
     let shareUrl = 'https://timer-app.example.com';
     try {
       if (window.location.href.startsWith('http')) {
@@ -234,7 +326,6 @@ export class AppComponent implements OnInit, OnDestroy {
     }
   }
 
-  // Modals
   openDeleteModal() { this.showDeleteModal.set(true); }
   closeDeleteModal() { this.showDeleteModal.set(false); }
   
@@ -244,7 +335,6 @@ export class AppComponent implements OnInit, OnDestroy {
   openSettingsModal() { this.showSettingsModal.set(true); }
   closeSettingsModal() { this.showSettingsModal.set(false); }
 
-  // Helpers
   formatTime(date: Date): string {
     return date.toLocaleTimeString('en-US', { 
       hour: 'numeric', 
@@ -257,7 +347,6 @@ export class AppComponent implements OnInit, OnDestroy {
     return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
   }
 
-  // Navigation (Swipe)
   onTouchStart(e: TouchEvent) {
     this.touchStartX = e.changedTouches[0].screenX;
   }
@@ -268,6 +357,7 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   handleSwipe() {
+    if (this.editingTimerId()) return; // Prevent swiping while editing
     const threshold = 50;
     const diff = this.touchStartX - this.touchEndX;
 
@@ -282,22 +372,19 @@ export class AppComponent implements OnInit, OnDestroy {
 
   nextTimer() {
     if (this.currentIndex() < this.timers().length - 1 && this.animationState() === 'idle') {
-      // 1. Slide Out Left
       this.animationState.set('slide-out-left');
       
-      // Fast transition
       setTimeout(() => {
         this.currentIndex.update(i => i + 1);
         this.updateTimeLeft();
         this.animationState.set('slide-in-right');
 
-        // Allow DOM update, then slide in
         requestAnimationFrame(() => {
             setTimeout(() => {
                  this.animationState.set('idle');
             }, 30);
         });
-      }, 250); // Matches duration-250
+      }, 250);
     }
   }
 
