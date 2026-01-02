@@ -1,0 +1,151 @@
+<div class="relative h-full w-full flex flex-col bg-black text-white select-none overflow-hidden font-sans group">
+  
+  <!-- Main Content Area (Swipeable) -->
+  <div class="flex-1 relative w-full h-full flex flex-col overflow-hidden" 
+       (touchstart)="onTouchStart($event)" 
+       (touchend)="onTouchEnd($event)">
+    
+    @if (timers().length > 0) {
+      
+      <!-- Timer Content Container -->
+      <div class="flex-1 w-full relative flex items-center justify-center overflow-hidden">
+        
+        <!-- Animated Wrapper -->
+        <div class="absolute inset-0 flex flex-col items-center justify-center w-full h-full transition-all will-change-transform"
+             [class.duration-250]="isAnimating()"
+             [class.duration-0]="!isAnimating()"
+             [class.ease-out]="isAnimating()"
+             [ngClass]="getSwipeClass()">
+          
+          <!-- Timer Title (Top) - Hidden in Landscape to prioritize digits -->
+          <div class="absolute top-[12%] w-full text-center px-6 landscape:hidden">
+             <h1 class="text-[34px] font-normal tracking-tight truncate leading-tight opacity-90">
+               {{ currentTimer().title }}
+             </h1>
+          </div>
+          
+          <!-- Digits (Center) -->
+          <!-- Landscape: Scaled up 2.4x for 'Big Font' mode -->
+          <div class="flex items-start justify-center gap-1 sm:gap-2 transform transition-transform duration-300 landscape:scale-[2.4] landscape:origin-center">
+            <!-- Hours -->
+            <div class="flex flex-col items-center w-[85px] sm:w-[100px]">
+              <span class="text-[76px] sm:text-[85px] leading-[0.9] font-light tracking-wider font-mono tabular-nums">
+                {{ timeLeft().hours }}
+              </span>
+              <span class="text-[#8E8E93] text-[15px] mt-1 font-medium landscape:hidden">hours</span>
+            </div>
+
+            <span class="text-[70px] sm:text-[76px] leading-[0.9] font-thin relative -top-[6px] text-[#8E8E93] mx-1">:</span>
+
+            <!-- Minutes -->
+            <div class="flex flex-col items-center w-[85px] sm:w-[100px]">
+              <span class="text-[76px] sm:text-[85px] leading-[0.9] font-light tracking-wider font-mono tabular-nums">
+                {{ timeLeft().minutes }}
+              </span>
+              <span class="text-[#8E8E93] text-[15px] mt-1 font-medium landscape:hidden">minutes</span>
+            </div>
+
+            <span class="text-[70px] sm:text-[76px] leading-[0.9] font-thin relative -top-[6px] text-[#8E8E93] mx-1">:</span>
+
+            <!-- Seconds -->
+            <div class="flex flex-col items-center w-[85px] sm:w-[100px]">
+              <span class="text-[76px] sm:text-[85px] leading-[0.9] font-light tracking-wider font-mono tabular-nums">
+                {{ timeLeft().seconds }}
+              </span>
+              <span class="text-[#8E8E93] text-[15px] mt-1 font-medium landscape:hidden">seconds</span>
+            </div>
+          </div>
+
+           <!-- Status Text (Bottom) - Hidden in Landscape -->
+           <div class="absolute bottom-[18%] w-full flex justify-center landscape:hidden">
+            @if (showStatusText(currentTimer())) {
+              <div class="flex items-center gap-2 px-6">
+                <div class="w-[6px] h-[6px] rounded-full bg-[#FF9F0A] animate-pulse shrink-0"></div>
+                <p class="text-[#8E8E93] text-[15px] font-normal tracking-wide text-center leading-tight truncate">
+                  @if (hasEnded(currentTimer())) {
+                    Ended at {{ formatTime(currentTimer().targetDate) }}
+                  } @else {
+                    {{ formatTime(currentTimer().targetDate) }}
+                  }
+                </p>
+              </div>
+            }
+          </div>
+
+        </div>
+      </div>
+
+    } @else {
+      <!-- Empty State -->
+      <div class="h-full flex items-center justify-center">
+        <p class="text-[#8E8E93]">No Timers</p>
+      </div>
+    }
+
+    <!-- Pagination Dots (Hidden in Landscape) -->
+    <div class="mb-8 flex justify-center gap-2 z-10 landscape:hidden">
+      @for (timer of timers(); track timer.id; let i = $index) {
+        <div class="w-[7px] h-[7px] rounded-full transition-colors duration-200"
+             [class.bg-white]="i === currentIndex()"
+             [class.bg-[#3a3a3c]]="i !== currentIndex()">
+        </div>
+      }
+    </div>
+  </div>
+
+  <!-- Bottom Toolbar (Hidden in Landscape) -->
+  <div class="bg-[#1C1C1E] px-5 pt-3 pb-8 border-t border-[#38383A] z-20 landscape:hidden">
+    <div class="flex items-center justify-between max-w-4xl mx-auto">
+      
+      <!-- Left Group -->
+      <div class="flex items-center gap-6">
+        <button (click)="openSettingsModal()" class="active:opacity-50 text-[#0A84FF] transition-opacity">
+          <app-icon name="gear"></app-icon>
+        </button>
+        <button (click)="shareTimer()" class="active:opacity-50 text-[#0A84FF] transition-opacity">
+          <app-icon name="share"></app-icon>
+        </button>
+        <button (click)="openEditModal()" class="text-[17px] font-normal active:opacity-50 text-[#0A84FF] transition-opacity">
+          Edit
+        </button>
+      </div>
+
+      <!-- Right Group -->
+      <div class="flex items-center gap-6">
+        <button (click)="addTimer()" class="active:opacity-50 text-[#0A84FF] transition-opacity">
+          <app-icon name="plus"></app-icon>
+        </button>
+        <button (click)="openDeleteModal()" class="active:opacity-50 text-[#0A84FF] transition-opacity disabled:opacity-30" [disabled]="timers().length === 0">
+          <app-icon name="trash"></app-icon>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Modals -->
+  @if (showDeleteModal()) {
+    <app-action-sheet 
+      [itemName]="currentTimer().title"
+      (confirm)="deleteCurrentTimer()"
+      (cancel)="closeDeleteModal()">
+    </app-action-sheet>
+  }
+
+  @if (showEditModal()) {
+    <app-edit-modal
+      [currentTitle]="currentTimer().title"
+      [targetDate]="currentTimer().targetDate"
+      (save)="saveTimerChanges($event)"
+      (cancel)="closeEditModal()">
+    </app-edit-modal>
+  }
+
+  @if (showSettingsModal()) {
+    <app-settings-modal
+      [settings]="settings()"
+      (close)="updateSettings($event)">
+    </app-settings-modal>
+  }
+
+</div>
