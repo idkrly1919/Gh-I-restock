@@ -9,6 +9,7 @@ interface Timer {
   id: string;
   title: string;
   targetDate: Date;
+  notified?: boolean;
 }
 
 type AnimationState = 'idle' | 'slide-out-left' | 'slide-out-right' | 'slide-in-right' | 'slide-in-left';
@@ -91,7 +92,11 @@ type AnimationState = 'idle' | 'slide-out-left' | 'slide-out-right' | 'slide-in-
            <div class="absolute bottom-[18%] w-full flex justify-center landscape:hidden">
             @if (showStatusText(currentTimer())) {
               <div class="flex items-center gap-2 px-6">
-                <div class="w-[6px] h-[6px] rounded-full bg-[#FF9F0A] animate-pulse shrink-0"></div>
+                @if (hasEnded(currentTimer())) {
+                  <div class="w-[6px] h-[6px] rounded-full bg-[#FF453A] shrink-0"></div>
+                } @else {
+                   <div class="w-[6px] h-[6px] rounded-full bg-[#FF9F0A] animate-pulse shrink-0"></div>
+                }
                 <p class="text-[#8E8E93] text-[15px] font-normal tracking-wide text-center leading-tight truncate">
                   @if (hasEnded(currentTimer())) {
                     Ended at {{ formatTime(currentTimer().targetDate) }}
@@ -212,7 +217,7 @@ export class AppComponent implements OnInit, OnDestroy {
     const list = this.timers();
     const index = this.currentIndex();
     if (list.length === 0) {
-      return { id: 'dummy', title: '', targetDate: new Date() };
+      return { id: 'dummy', title: '', targetDate: new Date(), notified: false };
     }
     return list[index];
   });
@@ -267,10 +272,8 @@ export class AppComponent implements OnInit, OnDestroy {
 
     effect(() => {
       if (this.editingTimerId() !== null) {
-          // Use a timeout to ensure the element is in the DOM and ready.
           setTimeout(() => {
               const inputEl = this.titleInput()?.nativeElement;
-              // The `autofocus` attribute handles focus. This effect now only handles text selection.
               if (inputEl && this.currentTimer().title !== 'New Timer') {
                  inputEl.select();
               }
@@ -282,6 +285,7 @@ export class AppComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.intervalId = setInterval(() => {
       this.updateTimeLeft();
+      this.checkAllTimersForCompletion();
     }, 1000);
     this.updateTimeLeft();
     this.requestWakeLock();
@@ -300,7 +304,7 @@ export class AppComponent implements OnInit, OnDestroy {
       try {
         this.wakeLock = await (navigator as any).wakeLock.request('screen');
       } catch (err) {
-        console.log('Wake Lock skipped', err);
+        console.log('Wake Lock skipped:', err);
       }
     }
   }
@@ -319,7 +323,8 @@ export class AppComponent implements OnInit, OnDestroy {
           if (Array.isArray(parsedTimers)) {
             const timers = parsedTimers.map(timer => ({
               ...timer,
-              targetDate: new Date(timer.targetDate)
+              targetDate: new Date(timer.targetDate),
+              notified: timer.notified ?? false
             }));
             this.timers.set(timers);
           }
@@ -354,6 +359,40 @@ export class AppComponent implements OnInit, OnDestroy {
     });
   }
 
+  checkAllTimersForCompletion() {
+    const now = new Date().getTime();
+    let timersModified = false;
+    let shouldVibrate = false;
+    
+    const currentTimers = this.timers();
+
+    const updatedTimers = currentTimers.map(timer => {
+        if (!timer.notified && timer.targetDate.getTime() - now <= 0) {
+            if (!shouldVibrate) {
+                shouldVibrate = true;
+            }
+            timersModified = true;
+            return { ...timer, notified: true };
+        }
+        return timer;
+    });
+
+    if (shouldVibrate) {
+      this.triggerVibration();
+    }
+
+    if (timersModified) {
+        this.timers.set(updatedTimers);
+    }
+  }
+
+  triggerVibration() {
+    if (this.settings().haptics && typeof navigator !== 'undefined' && navigator.vibrate) {
+      // Intensive vibration pattern: 3 long bursts
+      navigator.vibrate([500, 200, 500, 200, 500]);
+    }
+  }
+
   hasEnded(timer: Timer): boolean {
     return new Date().getTime() >= timer.targetDate.getTime();
   }
@@ -386,7 +425,8 @@ export class AppComponent implements OnInit, OnDestroy {
     const newTimer: Timer = {
       id: crypto.randomUUID(),
       title: 'New Timer',
-      targetDate: new Date()
+      targetDate: new Date(),
+      notified: false
     };
     this.timers.update(list => [...list, newTimer]);
     
@@ -426,8 +466,6 @@ export class AppComponent implements OnInit, OnDestroy {
     
     if (this.timers().length > 0) {
       this.currentIndex.set(Math.max(0, idx - 1));
-    } else {
-      this.addTimer(); 
     }
     this.closeDeleteModal();
     this.updateTimeLeft();
@@ -439,7 +477,8 @@ export class AppComponent implements OnInit, OnDestroy {
       newList[this.currentIndex()] = {
         ...newList[this.currentIndex()],
         title: data.title,
-        targetDate: data.date
+        targetDate: data.date,
+        notified: false
       };
       return newList;
     });
