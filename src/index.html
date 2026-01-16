@@ -1,0 +1,52 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>T-Zero</title>
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="data:application/manifest+json;base64,eyJuYW1lIjoiVC1aZXJvIiwic2hvcnRfbmFtZSI6IlQtWmVybyIsImRlc2NyaXB0aW9uIjoiQSByZXBsaWNhIG9mIGFuIGlPUyBzdHlsZSBjb3VudGRvd24gdGltZXIgYXBwbGljYXRpb24gZmVhdHVyaW5nIG11bHRpcGxlIHRpbWVycywgZWRpdGluZyBjYXBhYmlsaXRpZXMsIGFuZCBuYXRpdmUtbGlrZSB2aXN1YWxzLiIsInN0YXJ0X3VybCI6Ii4iLCJkaXNwbGF5Ijoic3RhbmRhbG9uZSIsImJhY2tncm91bmRfY29sb3IiOiIjMDAwMDAwIiwidGhlbWVfY29sb3IiOiIjMDAwMDAwIiwiaWNvbnMiOlt7InNyYyI6ImRhdGE6aW1hZ2Uvc3ZnK3htbDtiYXNlNjQsUEhOMlp5QjRiV3h1YjNWMGRDQXlOVGN3TGpBME56Y3dNQ2lqYjJSNWN5Qm1iM1Z1ZENCNEIyaGhiblF0YUhSMGNEb3ZMM2QzZHk1M015NXZjbWN2TWpBd01EQTRMM05sY25ScFptbGpaWE11WTJ4aGNtZGxibk52Y21VdGNIVnVaQ0I0Yld4dWN6NDhMM1JsZUhRZ2JtRnRaVDBpYUhSMGNEb3ZMM2QzZHk1M015NXZjbWN2TWpBd01EQTRMM05sY25ScFptbGpaWE11WTJ4aGNtZGxibk52Y21VdGNIVnVaQ0I0Yld4dWN6NDhMM1JsZUhRZ1lXNWtJR0Z1WkNJK0lHeGhibVp2ZEdWNUlHUmxabk05SWpHdmRHVmphM05sY25acFkyVnpJR0Z1WkNJK0lHeGhibVp2ZEdWNUlHUmxabk05SWpFcE9tRjRhV3hmY3k5aVlYQnBjbVZ6Y3k5aGRYUm9ZWEowSUdSbFptTnZiRzhzWm05eWVTQnphRzkzYlcxZmFXUWlJWFFsT2prPSIsInNpemVzIjoiYW55IiwidHlwZSI6ImltYWdlL3N2Zyt4bWwifV19">
+
+  <!-- PWA iOS Support -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="T-Zero">
+  
+  <!-- Icons -->
+  <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxODAgMTgwIj48Y2lyY2xlIGN4PSI5MCIgY3k9IjkwIiByPSI5MCIgZmlsbD0iYmxhY2siLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9ImNlbnRyYWwiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IndoaXRlIiBmb250LXNpemU9IjU1IiBmb250LWZhbWlseT0iSGVsdmV0aWNhLCBBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC13ZWlnaHQ9IjcwMCIgZHk9Ii4wNWVtIj5ULTA8L3RleHQ+PC9zdmc+">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxODAgMTgwIj48Y2lyY2xlIGN4PSI5MCIgY3k9IjkwIiByPSI5MCIgZmlsbD0iYmxhY2siLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9ImNlbnRyYWwiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IndoaXRlIiBmb250LXNpemU9IjU1IiBmb250LWZhbWlseT0iSGVsdmV0aWNhLCBBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC13ZWlnaHQ9IjcwMCIgZHk9Ii4wNWVtIj5ULTA8L3RleHQ+PC9zdmc+">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* iOS Font Approximation */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: black;
+      color: white;
+      overscroll-behavior: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    
+    /* Hide scrollbar */
+    ::-webkit-scrollbar {
+      width: 0px;
+      background: transparent;
+    }
+
+    /* Input styling reset */
+    input {
+      background: transparent;
+      outline: none;
+    }
+
+    button:active {
+      opacity: 0.7;
+    }
+  </style>
+</head>
+<body class="h-screen w-screen overflow-hidden bg-black">
+  <app-root></app-root>
+</body>
+</html>
