@@ -1,3 +1,4 @@
+
 import { Component, computed, signal, effect, OnDestroy, OnInit, viewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IconComponent } from './components/icons';
@@ -5,11 +6,16 @@ import { ActionSheetComponent } from './components/action-sheet.component';
 import { EditModalComponent } from './components/edit-modal.component';
 import { SettingsModalComponent, AppSettings } from './components/settings-modal.component';
 
-interface Timer {
+export interface Timer {
   id: string;
   title: string;
-  targetDate: Date;
-  notified?: boolean;
+  // targetTime is the Date timestamp when the timer should end.
+  targetTime: number; 
+  // isRunning controls the pause state.
+  isRunning: boolean;
+  // If paused, this holds the remaining ms (positive for countdown, negative for overtime)
+  pausedRemaining: number | null; 
+  notified: boolean;
 }
 
 type AnimationState = 'idle' | 'slide-out-left' | 'slide-out-right' | 'slide-in-right' | 'slide-in-left';
@@ -41,9 +47,16 @@ type AnimationState = 'idle' | 'slide-out-left' | 'slide-out-right' | 'slide-in-
           <!-- Timer Title (Top) - Hidden in Landscape to prioritize digits -->
           <div class="absolute top-[12%] w-full text-center px-6 landscape:hidden h-[41px] flex items-center justify-center">
             @if (editingTimerId() !== currentTimer().id) {
-              <h1 (click)="startEditing(currentTimer().id)" class="text-[34px] font-normal tracking-tight truncate leading-tight opacity-90">
-                {{ currentTimer().title }}
-              </h1>
+              <div class="flex flex-col items-center">
+                <h1 (click)="startEditing(currentTimer().id)" class="text-[34px] font-normal tracking-tight truncate leading-tight opacity-90 cursor-pointer">
+                  {{ currentTimer().title }}
+                </h1>
+                <span class="text-[13px] font-medium uppercase tracking-wider mt-1 opacity-80" 
+                      [class.text-[#0A84FF]]="!timeLeft().isOvertime"
+                      [class.text-[#FF453A]]="timeLeft().isOvertime">
+                  {{ timeLeft().isOvertime ? 'Overtime' : 'Timer' }}
+                </span>
+              </div>
             } @else {
               <input 
                 type="text"
@@ -58,51 +71,75 @@ type AnimationState = 'idle' | 'slide-out-left' | 'slide-out-right' | 'slide-in-
           </div>
           
           <!-- Digits (Center) -->
-          <div class="flex items-start justify-center gap-1 sm:gap-2 transform transition-transform duration-300 landscape:scale-[1.8] landscape:origin-center">
-            <!-- Hours -->
-            <div class="flex flex-col items-center w-auto">
-              <span [class]="digitStyles().digit" class="leading-[0.9] font-light tracking-wider tabular-nums">
-                {{ timeLeft().hours }}
-              </span>
-              <span class="text-[#8E8E93] text-[15px] mt-1 font-medium landscape:hidden">hours</span>
+          <div class="flex flex-col items-center gap-6">
+            <div class="flex items-start justify-center gap-1 sm:gap-2 transform transition-transform duration-300 landscape:scale-[1.8] landscape:origin-center">
+                <!-- Hours -->
+                <div class="flex flex-col items-center w-auto">
+                <span [class]="digitStyles().digit" 
+                        class="leading-[0.9] font-light tracking-wider tabular-nums transition-colors duration-300"
+                        [class.text-[#FF453A]]="timeLeft().isOvertime">
+                    {{ timeLeft().hours }}
+                </span>
+                <span class="text-[#8E8E93] text-[15px] mt-1 font-medium landscape:hidden">hours</span>
+                </div>
+
+                <span [class]="digitStyles().colon" class="leading-[0.9] font-thin relative -top-[6px] text-[#8E8E93] mx-3">:</span>
+
+                <!-- Minutes -->
+                <div class="flex flex-col items-center w-auto">
+                <span [class]="digitStyles().digit" 
+                        class="leading-[0.9] font-light tracking-wider tabular-nums transition-colors duration-300"
+                        [class.text-[#FF453A]]="timeLeft().isOvertime">
+                    {{ timeLeft().minutes }}
+                </span>
+                <span class="text-[#8E8E93] text-[15px] mt-1 font-medium landscape:hidden">minutes</span>
+                </div>
+
+                <span [class]="digitStyles().colon" class="leading-[0.9] font-thin relative -top-[6px] text-[#8E8E93] mx-3">:</span>
+
+                <!-- Seconds -->
+                <div class="flex flex-col items-center w-auto">
+                <span [class]="digitStyles().digit" 
+                        class="leading-[0.9] font-light tracking-wider tabular-nums transition-colors duration-300"
+                        [class.text-[#FF453A]]="timeLeft().isOvertime">
+                    {{ timeLeft().seconds }}
+                </span>
+                <span class="text-[#8E8E93] text-[15px] mt-1 font-medium landscape:hidden">seconds</span>
+                </div>
             </div>
 
-            <span [class]="digitStyles().colon" class="leading-[0.9] font-thin relative -top-[6px] text-[#8E8E93] mx-3">:</span>
-
-            <!-- Minutes -->
-            <div class="flex flex-col items-center w-auto">
-              <span [class]="digitStyles().digit" class="leading-[0.9] font-light tracking-wider tabular-nums">
-                {{ timeLeft().minutes }}
-              </span>
-              <span class="text-[#8E8E93] text-[15px] mt-1 font-medium landscape:hidden">minutes</span>
-            </div>
-
-            <span [class]="digitStyles().colon" class="leading-[0.9] font-thin relative -top-[6px] text-[#8E8E93] mx-3">:</span>
-
-            <!-- Seconds -->
-            <div class="flex flex-col items-center w-auto">
-              <span [class]="digitStyles().digit" class="leading-[0.9] font-light tracking-wider tabular-nums">
-                {{ timeLeft().seconds }}
-              </span>
-              <span class="text-[#8E8E93] text-[15px] mt-1 font-medium landscape:hidden">seconds</span>
-            </div>
+            <!-- Pause / Resume Button -->
+            <!-- Using ngClass to avoid syntax errors with slashes in class names in property bindings -->
+            <button (click)="togglePause()" 
+                    class="w-[64px] h-[64px] rounded-full flex items-center justify-center transition-all active:scale-95"
+                    [ngClass]="currentTimer().isRunning ? 'bg-[#FF9F0A]/20 text-[#FF9F0A]' : 'bg-[#30D158]/20 text-[#30D158]'">
+                 @if (currentTimer().isRunning) {
+                    <app-icon name="pause"></app-icon>
+                 } @else {
+                    <app-icon name="play"></app-icon>
+                 }
+            </button>
           </div>
 
            <!-- Status Text (Bottom) - Hidden in Landscape -->
            <div class="absolute bottom-[18%] w-full flex justify-center landscape:hidden">
             @if (showStatusText(currentTimer())) {
               <div class="flex items-center gap-2 px-6">
-                @if (hasEnded(currentTimer())) {
-                  <div class="w-[6px] h-[6px] rounded-full bg-[#FF453A] shrink-0"></div>
+                
+                @if (timeLeft().isOvertime) {
+                    <div class="w-[6px] h-[6px] rounded-full bg-[#FF453A] animate-pulse shrink-0"></div>
+                } @else if (currentTimer().isRunning) {
+                    <div class="w-[6px] h-[6px] rounded-full bg-[#30D158] animate-pulse shrink-0"></div>
                 } @else {
-                   <div class="w-[6px] h-[6px] rounded-full bg-[#FF9F0A] animate-pulse shrink-0"></div>
+                    <div class="w-[6px] h-[6px] rounded-full bg-[#8E8E93] shrink-0"></div>
                 }
+
                 <p class="text-[#8E8E93] text-[15px] font-normal tracking-wide text-center leading-tight truncate">
-                  @if (hasEnded(currentTimer())) {
-                    Ended at {{ formatTime(currentTimer().targetDate) }}
-                  } @else {
-                    {{ formatTime(currentTimer().targetDate) }}
-                  }
+                   @if (timeLeft().isOvertime) {
+                      Ends at {{ formatTime(currentTimer().targetTime) }}
+                   } @else {
+                      Ends at {{ formatTime(currentTimer().targetTime) }}
+                   }
                 </p>
               </div>
             }
@@ -171,7 +208,7 @@ type AnimationState = 'idle' | 'slide-out-left' | 'slide-out-right' | 'slide-in-
   @if (showEditModal()) {
     <app-edit-modal
       [currentTitle]="currentTimer().title"
-      [targetDate]="currentTimer().targetDate"
+      [referenceTime]="referenceTimeDate(currentTimer())"
       (save)="saveTimerChanges($event)"
       (cancel)="closeEditModal()">
     </app-edit-modal>
@@ -188,7 +225,7 @@ type AnimationState = 'idle' | 'slide-out-left' | 'slide-out-right' | 'slide-in-
 `
 })
 export class AppComponent implements OnInit, OnDestroy {
-  private readonly storageKey = 'angular-ios-timer-app';
+  private readonly storageKey = 'angular-ios-timer-app-v2';
 
   // State
   timers = signal<Timer[]>([]);
@@ -217,7 +254,7 @@ export class AppComponent implements OnInit, OnDestroy {
     const list = this.timers();
     const index = this.currentIndex();
     if (list.length === 0) {
-      return { id: 'dummy', title: '', targetDate: new Date(), notified: false };
+      return { id: 'dummy', title: '', targetTime: Date.now(), isRunning: false, pausedRemaining: 0, notified: false };
     }
     return list[index];
   });
@@ -249,7 +286,7 @@ export class AppComponent implements OnInit, OnDestroy {
   });
 
   // Timer Interval
-  timeLeft = signal({ hours: '0', minutes: '00', seconds: '00' });
+  timeLeft = signal({ hours: '0', minutes: '00', seconds: '00', isOvertime: false });
   private intervalId: any;
   private wakeLock: any = null;
 
@@ -286,7 +323,7 @@ export class AppComponent implements OnInit, OnDestroy {
     this.intervalId = setInterval(() => {
       this.updateTimeLeft();
       this.checkAllTimersForCompletion();
-    }, 1000);
+    }, 100); // 100ms for responsiveness
     this.updateTimeLeft();
     this.requestWakeLock();
     
@@ -321,10 +358,14 @@ export class AppComponent implements OnInit, OnDestroy {
         try {
           const parsedTimers: any[] = JSON.parse(savedTimersJson);
           if (Array.isArray(parsedTimers)) {
-            const timers = parsedTimers.map(timer => ({
-              ...timer,
-              targetDate: new Date(timer.targetDate),
-              notified: timer.notified ?? false
+            // Migration logic if schema changed
+            const timers: Timer[] = parsedTimers.map(t => ({
+                id: t.id,
+                title: t.title,
+                targetTime: t.targetTime || (t.referenceTime ? new Date(t.referenceTime).getTime() : Date.now()),
+                isRunning: t.isRunning ?? false,
+                pausedRemaining: t.pausedRemaining ?? null,
+                notified: t.notified ?? false
             }));
             this.timers.set(timers);
           }
@@ -336,16 +377,30 @@ export class AppComponent implements OnInit, OnDestroy {
     }
   }
 
+  // Helpers
+  referenceTimeDate(timer: Timer): Date {
+      return new Date(timer.targetTime);
+  }
+
   updateTimeLeft() {
     if (this.timers().length === 0) return;
 
-    const target = this.currentTimer().targetDate.getTime();
-    const now = new Date().getTime();
-    const diff = target - now;
+    const timer = this.currentTimer();
+    const now = Date.now();
+    let diff = 0;
+    let isOvertime = false;
 
-    if (diff <= 0) {
-      this.timeLeft.set({ hours: '0', minutes: '00', seconds: '00' });
-      return;
+    if (!timer.isRunning && timer.pausedRemaining !== null) {
+        // Show paused time
+        diff = timer.pausedRemaining;
+    } else {
+        // Calculate live time
+        diff = timer.targetTime - now;
+    }
+
+    if (diff < 0) { // Changed to strictly less than 0 so 00:00:00 is white
+        isOvertime = true;
+        diff = Math.abs(diff); // Convert to positive for display
     }
 
     const hours = Math.floor(diff / (1000 * 60 * 60));
@@ -355,30 +410,34 @@ export class AppComponent implements OnInit, OnDestroy {
     this.timeLeft.set({
       hours: hours.toString(),
       minutes: minutes.toString().padStart(2, '0'),
-      seconds: seconds.toString().padStart(2, '0')
+      seconds: seconds.toString().padStart(2, '0'),
+      isOvertime
     });
   }
 
   checkAllTimersForCompletion() {
-    const now = new Date().getTime();
+    const now = Date.now();
     let timersModified = false;
     let shouldVibrate = false;
     
     const currentTimers = this.timers();
 
     const updatedTimers = currentTimers.map(timer => {
-        if (!timer.notified && timer.targetDate.getTime() - now <= 0) {
-            if (!shouldVibrate) {
+        // Check for transition to overtime
+        if (timer.isRunning && !timer.notified) {
+            const diff = timer.targetTime - now;
+            if (diff <= 0) {
+                // Timer just hit zero/overtime
                 shouldVibrate = true;
+                timersModified = true;
+                return { ...timer, notified: true };
             }
-            timersModified = true;
-            return { ...timer, notified: true };
         }
         return timer;
     });
 
     if (shouldVibrate) {
-      this.triggerVibration();
+      this.triggerBeep();
     }
 
     if (timersModified) {
@@ -386,20 +445,34 @@ export class AppComponent implements OnInit, OnDestroy {
     }
   }
 
-  triggerVibration() {
+  triggerBeep() {
+    if (this.settings().sound) {
+        // Simple Beep using AudioContext
+        try {
+            const AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext;
+            if (AudioContext) {
+                const ctx = new AudioContext();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, ctx.currentTime); // High pitch beep
+                gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.3); // 300ms beep
+            }
+        } catch(e) {}
+    }
+
     if (this.settings().haptics && typeof navigator !== 'undefined' && navigator.vibrate) {
-      // Intensive vibration pattern: 3 long bursts
-      navigator.vibrate([500, 200, 500, 200, 500]);
+      navigator.vibrate([200, 100, 200]);
     }
   }
 
-  hasEnded(timer: Timer): boolean {
-    return new Date().getTime() >= timer.targetDate.getTime();
-  }
-
   showStatusText(timer: Timer): boolean {
-    if (timer.title === 'New Timer' && this.hasEnded(timer)) {
-      return false;
+    if (timer.title === 'New Timer' && !timer.isRunning && timer.pausedRemaining === 0) {
+      return false; // Don't show "Ends at..." for a 00:00:00 fresh timer
     }
     return true;
   }
@@ -425,7 +498,9 @@ export class AppComponent implements OnInit, OnDestroy {
     const newTimer: Timer = {
       id: crypto.randomUUID(),
       title: 'New Timer',
-      targetDate: new Date(),
+      targetTime: Date.now(), // Effectively 0 diff
+      isRunning: false,
+      pausedRemaining: 0, // Explicitly 0 remaining
       notified: false
     };
     this.timers.update(list => [...list, newTimer]);
@@ -436,6 +511,36 @@ export class AppComponent implements OnInit, OnDestroy {
         this.currentIndex.set(0);
         this.updateTimeLeft();
     }
+  }
+
+  togglePause() {
+      const now = Date.now();
+      this.timers.update(list => {
+          const newList = [...list];
+          const timer = { ...newList[this.currentIndex()] };
+
+          if (timer.isRunning) {
+              // PAUSE IT
+              // Calculate effective remaining time (positive or negative)
+              timer.pausedRemaining = timer.targetTime - now;
+              timer.isRunning = false;
+          } else {
+              // RESUME IT
+              // New target = Now + remaining
+              // If remaining was negative (overtime -5000), target = Now - 5000 (5 seconds ago)
+              if (timer.pausedRemaining !== null) {
+                timer.targetTime = now + timer.pausedRemaining;
+              } else {
+                timer.targetTime = now; // Fallback
+              }
+              timer.pausedRemaining = null;
+              timer.isRunning = true;
+          }
+          
+          newList[this.currentIndex()] = timer;
+          return newList;
+      });
+      this.updateTimeLeft();
   }
 
   startEditing(timerId: string) {
@@ -466,20 +571,47 @@ export class AppComponent implements OnInit, OnDestroy {
     
     if (this.timers().length > 0) {
       this.currentIndex.set(Math.max(0, idx - 1));
+    } else {
+        // If we deleted the last one, add a new default one so screen isn't empty
+        if (this.timers().length === 0) {
+            this.addTimer();
+        }
     }
     this.closeDeleteModal();
     this.updateTimeLeft();
   }
 
-  saveTimerChanges(data: { title: string, date: Date }) {
+  saveTimerChanges(data: { title: string, referenceTime: Date }) {
     this.timers.update(list => {
       const newList = [...list];
+      
+      // When saving a new date, we reset the notification state
+      // We also auto-start the timer usually, or respect the user's manual pause?
+      // Convention: If I set a date, I probably want it to run.
+      
+      const newTarget = data.referenceTime.getTime();
+      const now = Date.now();
+
       newList[this.currentIndex()] = {
         ...newList[this.currentIndex()],
         title: data.title,
-        targetDate: data.date,
-        notified: false
+        targetTime: newTarget,
+        isRunning: true, // Auto start on edit
+        pausedRemaining: null,
+        notified: newTarget <= now // If set to past, it's already notified effectively, or we let it beep immediately? 
+                                   // Let's set notified false so if they set it 1 min in past, it beeps immediately?
+                                   // Or set notified true if it's way in past. 
+                                   // Simplest: Notified false, let the loop catch it.
       };
+      
+      // Edge case: if setting time in past, mark notified as true to avoid instant beep?
+      // The prompt wants it to "beep then count up".
+      if (newTarget <= now) {
+          newList[this.currentIndex()].notified = true; 
+      } else {
+          newList[this.currentIndex()].notified = false;
+      }
+
       return newList;
     });
     this.closeEditModal();
@@ -502,9 +634,11 @@ export class AppComponent implements OnInit, OnDestroy {
       }
     } catch(e) {}
 
+    const target = new Date(t.targetTime);
+
     const shareData = {
       title: t.title,
-      text: `Countdown to ${t.title} on ${this.formatDate(t.targetDate)}`,
+      text: `Countdown to ${t.title} on ${this.formatDate(target)} at ${this.formatTime(target)}`,
       url: shareUrl
     };
 
@@ -514,7 +648,7 @@ export class AppComponent implements OnInit, OnDestroy {
         this.copyFallback(shareData.text);
       });
     } else {
-      this.copyFallback(`${shareData.text} at ${this.formatTime(t.targetDate)}`);
+      this.copyFallback(shareData.text);
     }
   }
 
@@ -537,7 +671,8 @@ export class AppComponent implements OnInit, OnDestroy {
   openSettingsModal() { this.showSettingsModal.set(true); }
   closeSettingsModal() { this.showSettingsModal.set(false); }
 
-  formatTime(date: Date): string {
+  formatTime(dateInput: number | Date): string {
+    const date = new Date(dateInput);
     return date.toLocaleTimeString('en-US', { 
       hour: 'numeric', 
       minute: '2-digit', 
@@ -545,7 +680,8 @@ export class AppComponent implements OnInit, OnDestroy {
     }).toLowerCase();
   }
 
-  formatDate(date: Date): string {
+  formatDate(dateInput: number | Date): string {
+    const date = new Date(dateInput);
     return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
   }
 
