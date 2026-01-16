@@ -109,10 +109,10 @@ type AnimationState = 'idle' | 'slide-out-left' | 'slide-out-right' | 'slide-in-
             </div>
 
             <!-- Pause / Resume Button -->
-            <!-- Using ngClass to avoid syntax errors with slashes in class names in property bindings -->
+            <!-- Using simple class binding to computed property to avoid parser errors -->
             <button (click)="togglePause()" 
                     class="w-[64px] h-[64px] rounded-full flex items-center justify-center transition-all active:scale-95"
-                    [ngClass]="currentTimer().isRunning ? 'bg-[#FF9F0A]/20 text-[#FF9F0A]' : 'bg-[#30D158]/20 text-[#30D158]'">
+                    [class]="buttonClass()">
                  @if (currentTimer().isRunning) {
                     <app-icon name="pause"></app-icon>
                  } @else {
@@ -283,6 +283,13 @@ export class AppComponent implements OnInit, OnDestroy {
         digit: 'text-[76px] sm:text-[85px]',
         colon: 'text-[70px] sm:text-[76px]'
     };
+  });
+
+  // Safe class binding for button to avoid JIT errors
+  buttonClass = computed(() => {
+    return this.currentTimer().isRunning 
+      ? 'bg-[#FF9F0A]/20 text-[#FF9F0A]' 
+      : 'bg-[#30D158]/20 text-[#30D158]';
   });
 
   // Timer Interval
