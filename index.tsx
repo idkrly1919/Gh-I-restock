@@ -1,12 +1,4 @@
-import '@angular/compiler';
-import { bootstrapApplication } from '@angular/platform-browser';
-import { AppComponent } from './src/app.component';
-import { provideExperimentalZonelessChangeDetection } from '@angular/core';
 
-bootstrapApplication(AppComponent, {
-  providers: [
-    provideExperimentalZonelessChangeDetection()
-  ]
-}).catch((err) => console.error(err));
+// Deprecated: This project uses src/main.ts as the entry point for Angular.
 
 // AI Studio always uses an `index.tsx` file for all project types.
