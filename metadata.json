@@ -1,5 +1,10 @@
 {
   "name": "T-Zero",
   "description": "A replica of an iOS style countdown timer application featuring multiple timers, editing capabilities, and native-like visuals.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "aiConfig": {
+    "provider": "openrouter",
+    "model": "x-ai/grok-4.1-fast",
+    "configFile": "ai-config.json"
+  }
 }

@@ -15,6 +15,14 @@ View your app in AI Studio: https://ai.studio/apps/drive/1R1YDDD5EQYFzX8bXP7EI8U
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+2. Set the `OPENROUTER_API_KEY` in [.env.local](.env.local) to your OpenRouter API key
 3. Run the app:
    `npm run dev`
+
+## AI Configuration
+
+This app uses OpenRouter with the `x-ai/grok-4.1-fast` model. The AI is configured to be:
+- Very conversational and friendly for general interactions
+- Highly intelligent and precise for 'smart' tasks (coding, analysis, research, etc.)
+
+Configuration is stored in [ai-config.json](ai-config.json).
